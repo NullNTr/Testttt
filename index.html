@@ -2,377 +2,206 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<title>Discord User Token Auto Join & Spammer</title>
+<title>Discord Token Checker</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <style>
-body{
-  margin:0;
-  min-height:100vh;
-  background:#000;
-  display:flex;
-  justify-content:center;
-  align-items:center;
-  font-family:system-ui,sans-serif;
-  color:#fee2e2;
-}
-.container{
-  width:94%;
-  max-width:600px;
-  padding:24px;
-  background:linear-gradient(145deg,#1a0000,#000);
-  border-radius:18px;
-  border:1px solid #7f1d1d;
-  box-shadow:0 0 40px rgba(239,68,68,.35);
-}
-h1{
-  text-align:center;
-  margin-bottom:24px;
-  font-size:26px;
-  background:linear-gradient(90deg,#fecaca,#ef4444,#7f1d1d);
-  -webkit-background-clip:text;
-  -webkit-text-fill-color:transparent;
-}
-.warning{
-  background:#330000;
-  padding:14px;
-  border-radius:10px;
-  margin-bottom:20px;
-  font-size:14px;
-  border:1px solid #7f1d1d;
-  line-height:1.5;
-}
-label{
-  display:block;
-  margin-top:16px;
-  font-size:14px;
-  color:#fecaca;
-}
-input, textarea{
-  width:100%;
-  box-sizing:border-box;
-  margin-top:8px;
-  padding:12px;
-  border-radius:12px;
-  background:#000;
-  color:#fee2e2;
-  border:1px solid #7f1d1d;
-  outline:none;
-  font-size:14px;
-}
-textarea{
-  resize:vertical;
-  height:120px;
-}
-#message{
-  height:100px;
-}
-.row{
-  display:flex;
-  gap:12px;
-}
-.row input{
-  flex:1;
-}
-.buttons{
-  display:flex;
-  gap:12px;
-  margin-top:20px;
-}
-button{
-  flex:1;
-  padding:15px;
-  font-size:16px;
-  font-weight:bold;
-  border-radius:14px;
-  border:none;
-  cursor:pointer;
-  color:white;
-}
-#startBtn{
-  background:linear-gradient(135deg,#16a34a,#22c55e);
-}
-#stopBtn{
-  background:linear-gradient(135deg,#dc2626,#ef4444);
-  opacity:0.6;
-}
-#stopBtn.enabled{
-  opacity:1;
-}
-.log{
-  margin-top:20px;
-  padding:12px;
-  background:#111;
-  border-radius:12px;
-  border:1px solid #7f1d1d;
-  max-height:240px;
-  overflow:auto;
-  font-size:13px;
-  color:#fecaca;
-}
-.stats{
-  margin-top:10px;
-  font-size:14px;
-  color:#fbbf24;
-  text-align:center;
-  font-weight:bold;
-}
+  body {
+    margin: 0;
+    min-height: 100vh;
+    background: #000;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-family: system-ui, -apple-system, sans-serif;
+    color: #fee2e2;
+  }
+  .container {
+    width: 94%;
+    max-width: 560px;
+    padding: 30px;
+    background: linear-gradient(145deg, #1a0000, #000);
+    border-radius: 20px;
+    border: 1px solid #7f1d1d;
+    box-shadow: 0 0 50px rgba(239, 68, 68, 0.3);
+  }
+  h1 {
+    text-align: center;
+    margin-bottom: 28px;
+    font-size: 28px;
+    background: linear-gradient(90deg, #fecaca, #ef4444, #7f1d1d);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  label {
+    display: block;
+    margin-top: 20px;
+    font-size: 15px;
+    color: #fecaca;
+  }
+  textarea {
+    width: 100%;
+    box-sizing: border-box;
+    margin-top: 10px;
+    padding: 16px;
+    border-radius: 14px;
+    background: #000;
+    color: #fee2e2;
+    border: 1px solid #7f1d1d;
+    outline: none;
+    font-size: 15px;
+    resize: vertical;
+    height: 160px;
+    font-family: monospace;
+  }
+  button {
+    width: 100%;
+    margin-top: 24px;
+    padding: 18px;
+    font-size: 17px;
+    font-weight: bold;
+    border-radius: 16px;
+    border: none;
+    cursor: pointer;
+    color: white;
+    background: linear-gradient(135deg, #dc2626, #ef4444, #7f1d1d);
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 15px rgba(239, 68, 68, 0.4);
+  }
+  button:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(239, 68, 68, 0.5);
+  }
+  button:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none;
+  }
+  .log {
+    margin-top: 24px;
+    padding: 16px;
+    background: #111;
+    border-radius: 14px;
+    border: 1px solid #7f1d1d;
+    max-height: 260px;
+    overflow-y: auto;
+    font-size: 14px;
+    color: #fecaca;
+    line-height: 1.6;
+    font-family: monospace;
+  }
+  .status-valid {
+    color: #86efac;
+    font-weight: bold;
+  }
+  .status-invalid {
+    color: #fca5a5;
+    font-weight: bold;
+  }
 </style>
 </head>
 <body>
 <div class="container">
-  <h1>Discord User Token Auto Join & Spammer</h1>
+  <h1>Discord Token Checker</h1>
 
-  <div class="warning">
-    ⚠️ 超危険警告：ユーザーアカウントトークン使用はDiscord利用規約違反です。<br>
-    サーバー参加や自動送信は即アカウント凍結の原因になります。<br>
-    <strong>メインアカウントでは絶対に使用しないでください。全て自己責任です。</strong>
-  </div>
+  <label for="tokens">チェックしたいトークン（1行に1つ、複数可）</label>
+  <textarea id="tokens" placeholder="ここにDiscordのユーザーアカウントトークンを貼り付けてください&#10;例:&#10;mfa.VkO_2G4Qv3T-- NOPE --&#10;NTg3ODIyMzQ1Njc4OTA0NjQw.Gabcde.1234567890abcdef"></textarea>
 
-  <label for="tokens">ユーザーアカウントトークン（最大15個、改行区切り）</label>
-  <textarea id="tokens" placeholder="自分のアカウントトークンを1行ずつ貼り付けてください"></textarea>
-
-  <label for="guild">参加させるサーバーID（Guild ID）</label>
-  <input type="text" id="guild" placeholder="例: 123456789012345678">
-
-  <label for="invite">または 招待コード（例: abcdef または https://discord.gg/abcdef）</label>
-  <input type="text" id="invite" placeholder="招待リンクまたはコード（サーバーIDの代わり）">
-
-  <label for="channel">送信先チャンネルID</label>
-  <input type="text" id="channel" placeholder="例: 987654321098765432">
-
-  <label for="message">送信メッセージ（最大2000文字）</label>
-  <textarea id="message" maxlength="2000" placeholder="送信したいメッセージ"></textarea>
-
-  <div class="row">
-    <div>
-      <label for="interval">送信間隔（ミリ秒）</label>
-      <input type="number" id="interval" value="5000" min="1000">
-    </div>
-    <div>
-      <label for="maxCount">送信回数（空欄または0で無限）</label>
-      <input type="number" id="maxCount" value="0" min="0">
-    </div>
-  </div>
-
-  <div class="buttons">
-    <button id="startBtn" onclick="startProcess()">実行</button>
-    <button id="stopBtn" onclick="stopProcess()">停止</button>
-  </div>
-
-  <div class="stats" id="stats">累計送信成功: 0 回</div>
+  <button id="checkBtn" onclick="checkTokens()">実行</button>
 
   <div class="log" id="log"></div>
 </div>
 
 <script>
 const tokensEl = document.getElementById("tokens");
-const guildEl = document.getElementById("guild");
-const inviteEl = document.getElementById("invite");
-const channelEl = document.getElementById("channel");
-const messageEl = document.getElementById("message");
-const intervalEl = document.getElementById("interval");
-const maxCountEl = document.getElementById("maxCount");
 const logEl = document.getElementById("log");
-const statsEl = document.getElementById("stats");
-const startBtn = document.getElementById("startBtn");
-const stopBtn = document.getElementById("stopBtn");
+const checkBtn = document.getElementById("checkBtn");
 
-let isRunning = false;
-let successCount = 0;
-let currentIndex = 0;
-
-function now(){
+function now() {
   const d = new Date();
   return `[${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}:${String(d.getSeconds()).padStart(2,"0")}]`;
 }
 
-function log(text){
+function log(text) {
   logEl.innerHTML += `${now()} ${text}<br>`;
   logEl.scrollTop = logEl.scrollHeight;
 }
 
-function updateStats(){
-  statsEl.textContent = `累計送信成功: ${successCount} 回`;
+async function checkSingleToken(token) {
+  const url = "https://discord.com/api/v10/users/@me";
+
+  try {
+    const response = await fetch(url, {
+      headers: {
+        "Authorization": token.trim(),
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+      }
+    });
+
+    if (response.status === 200) {
+      const data = await response.json();
+      const username = data.username ? `${data.username}#${data.discriminator || '0'}` : "不明なユーザー";
+      return { valid: true, username };
+    } else if (response.status === 401) {
+      return { valid: false, reason: "無効なトークン" };
+    } else if (response.status === 403) {
+      return { valid: false, reason: "凍結または無効化されたアカウント" };
+    } else {
+      return { valid: false, reason: `エラー ${response.status}` };
+    }
+  } catch (err) {
+    return { valid: false, reason: "ネットワークエラー" };
+  }
 }
 
-function clearLog(){
+async function checkTokens() {
   logEl.innerHTML = "";
-  successCount = 0;
-  updateStats();
-}
+  checkBtn.disabled = true;
+  checkBtn.textContent = "チェック中...";
 
-function stopProcess(){
-  isRunning = false;
-  stopBtn.classList.remove("enabled");
-  log("🛑 処理を停止しました");
-}
-
-async function joinServer(token, guildId, inviteCode){
-  let url;
-  let body = {};
-
-  if(inviteCode){
-    // 招待コードから抽出
-    const code = inviteCode.replace(/.*discord\.gg\//, '').trim();
-    if(!code) return { success: false, error: "無効な招待コード" };
-    url = `https://discord.com/api/v10/invites/${code}`;
-  }else if(guildId){
-    // 直接joinは通常不可能なので失敗扱い（参考情報）
-    log("   ℹ️ 招待コードなしでサーバーIDのみ指定した場合、参加できません（Discord制限）");
-    return { success: false, error: "招待コードが必要です" };
-  }else{
-    return { success: false, error: "サーバーIDまたは招待コードを入力してください" };
-  }
-
-  try{
-    const res = await fetch(url, {
-      method: "POST",
-      headers: {
-        "Authorization": token.trim(),
-        "Content-Type": "application/json",
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
-      },
-      body: JSON.stringify(body)
-    });
-
-    if(res.ok || res.status === 200){
-      return { success: true };
-    }else{
-      const json = await res.json().catch(() => ({}));
-      return { success: false, error: json.message || `Status: ${res.status}` };
-    }
-  }catch(e){
-    return { success: false, error: "Network Error" };
-  }
-}
-
-async function sendMessage(token, channelId, content){
-  const url = `https://discord.com/api/v10/channels/${channelId}/messages`;
-  try{
-    const res = await fetch(url, {
-      method: "POST",
-      headers: {
-        "Authorization": token.trim(),
-        "Content-Type": "application/json",
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
-      },
-      body: JSON.stringify({ content })
-    });
-
-    if(res.ok){
-      return { success: true };
-    }else if(res.status === 429){
-      const json = await res.json();
-      const retryAfter = (json.retry_after || 5) + 2;
-      return { success: false, rateLimit: true, retryAfter };
-    }else{
-      const json = await res.json().catch(() => ({}));
-      return { success: false, error: json.message || `Status: ${res.status}` };
-    }
-  }catch(e){
-    return { success: false, error: "Network Error" };
-  }
-}
-
-async function startProcess(){
-  if(isRunning) return;
-
-  clearLog();
-  stopBtn.classList.add("enabled");
-
-  const rawTokens = tokensEl.value.trim();
-  const guildId = guildEl.value.trim();
-  const inviteCode = inviteEl.value.trim();
-  const channelId = channelEl.value.trim();
-  const message = messageEl.value.trim();
-  const intervalMs = parseInt(intervalEl.value) || 5000;
-  const maxCount = parseInt(maxCountEl.value) || 0;
-
-  if(!rawTokens || !channelId || !message){
-    log("❌ トークン・チャンネルID・メッセージは必須です");
-    stopBtn.classList.remove("enabled");
-    return;
-  }
-  if(!guildId && !inviteCode){
-    log("❌ サーバーIDまたは招待コードのいずれかを入力してください");
-    stopBtn.classList.remove("enabled");
-    return;
-  }
-  if(message.length > 2000 || intervalMs < 1000){
-    log("❌ パラメータが無効です（メッセージ2000文字以内、間隔1000ms以上）");
-    stopBtn.classList.remove("enabled");
+  const rawInput = tokensEl.value.trim();
+  if (!rawInput) {
+    log("❌ トークンが入力されていません");
+    checkBtn.disabled = false;
+    checkBtn.textContent = "実行";
     return;
   }
 
-  const tokens = rawTokens.split("\n").map(t=>t.trim()).filter(t=>t).slice(0,15);
-  if(tokens.length === 0){
-    log("❌ 有効なトークンがありません");
-    stopBtn.classList.remove("enabled");
+  const tokens = rawInput
+    .split("\n")
+    .map(t => t.trim())
+    .filter(t => t.length > 20);
+
+  if (tokens.length === 0) {
+    log("❌ 有効そうなトークンがありません");
+    checkBtn.disabled = false;
+    checkBtn.textContent = "実行";
     return;
   }
 
-  log(`✅ 処理開始（${tokens.length}アカウント使用）`);
-  log(`間隔: ${intervalMs}ms | 最大送信回数: ${maxCount === 0 ? "無限" : maxCount + "回"}`);
+  log(`✅ ${tokens.length}件のトークンをチェック開始`);
 
-  isRunning = true;
-  currentIndex = 0;
-  let sentCount = 0;
-
-  // まず全トークンでサーバー参加を試行
-  log("🔗 サーバー参加処理を開始...");
-  for(let i = 0; i < tokens.length && isRunning; i++){
+  for (let i = 0; i < tokens.length; i++) {
     const token = tokens[i];
-    log(`[${i+1}/${tokens.length}] 参加試行中... (${token.slice(0,10)}...)`);
+    const shortToken = token.slice(0, 20) + "...";
 
-    const result = await joinServer(token, guildId, inviteCode);
+    log(`[${i + 1}/${tokens.length}] チェック中: ${shortToken}`);
 
-    if(result.success){
-      log(`✅ 参加成功: ${token.slice(0,10)}...`);
-    }else{
-      log(`❌ 参加失敗: ${token.slice(0,10)}... (${result.error})`);
-      if(result.error.includes("captcha")) log("   → CAPTCHA検知（手動参加が必要かも）");
+    const result = await checkSingleToken(token);
+
+    if (result.valid) {
+      log(`<span class="status-valid">✅ このトークンは有効です → ${result.username}</span>`);
+    } else {
+      log(`<span class="status-invalid">❌ このトークンは無効です (${result.reason})</span>`);
     }
 
-    if(isRunning) await new Promise(r => setTimeout(r, 2000)); // 参加間隔
-  }
-
-  if(!isRunning) return;
-
-  log("📩 参加完了。自動メッセージ送信を開始...");
-  log(`チャンネル: ${channelId}`);
-
-  while(isRunning && (maxCount === 0 || sentCount < maxCount)){
-    const token = tokens[currentIndex % tokens.length];
-    currentIndex++;
-
-    log(`[${sentCount + 1}] 送信中... (${token.slice(0,10)}...)`);
-
-    const result = await sendMessage(token, channelId, message);
-
-    if(result.success){
-      successCount++;
-      sentCount++;
-      updateStats();
-      log(`✅ 成功 (${successCount}回目)`);
-    }else if(result.rateLimit){
-      log(`⏳ レートリミット: ${result.retryAfter}s 待機`);
-      await new Promise(r => setTimeout(r, result.retryAfter * 1000));
-      continue;
-    }else{
-      log(`❌ 送信失敗 (${result.error})`);
-    }
-
-    if(isRunning && (maxCount === 0 || sentCount < maxCount)){
-      await new Promise(r => setTimeout(r, intervalMs));
+    if (i < tokens.length - 1) {
+      await new Promise(r => setTimeout(r, 800));
     }
   }
 
-  if(maxCount !== 0 && sentCount >= maxCount){
-    log(`🏁 指定回数(${maxCount}回)に達したため終了`);
-  }
-
-  isRunning = false;
-  stopBtn.classList.remove("enabled");
+  log("🏁 すべてのチェックが完了しました");
+  checkBtn.disabled = false;
+  checkBtn.textContent = "実行";
 }
 </script>
 </body>
