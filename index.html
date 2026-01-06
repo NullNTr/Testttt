@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<title>Discord User Token Message Sender</title>
+<title>Discord User Token Auto Spammer</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <style>
 body{
@@ -32,6 +32,15 @@ h1{
   -webkit-background-clip:text;
   -webkit-text-fill-color:transparent;
 }
+.warning{
+  background:#330000;
+  padding:14px;
+  border-radius:10px;
+  margin-bottom:20px;
+  font-size:14px;
+  border:1px solid #7f1d1d;
+  line-height:1.5;
+}
 label{
   display:block;
   margin-top:16px;
@@ -56,6 +65,13 @@ textarea{
 }
 #message{
   height:100px;
+}
+.row{
+  display:flex;
+  gap:12px;
+}
+.row input{
+  flex:1;
 }
 .buttons{
   display:flex;
@@ -88,43 +104,56 @@ button{
   background:#111;
   border-radius:12px;
   border:1px solid #7f1d1d;
-  max-height:200px;
+  max-height:240px;
   overflow:auto;
   font-size:13px;
   color:#fecaca;
 }
-.warning{
-  background:#330000;
-  padding:12px;
-  border-radius:10px;
-  margin-bottom:20px;
-  font-size:13px;
-  border:1px solid #7f1d1d;
+.stats{
+  margin-top:10px;
+  font-size:14px;
+  color:#fbbf24;
+  text-align:center;
+  font-weight:bold;
 }
 </style>
 </head>
 <body>
 <div class="container">
-  <h1>Discord User Token Message Sender</h1>
+  <h1>Discord User Token Auto Spammer</h1>
 
   <div class="warning">
-    ⚠️ 警告：ユーザーアカウントトークンを使用した自動送信はDiscord利用規約違反です。<br>
-    アカウントが凍結・削除される可能性が非常に高いです。自己責任で使用してください。
+    ⚠️ 超危険警告：ユーザーアカウントトークンでの自動送信はDiscord利用規約に明確に違反します。<br>
+    数分～数時間でアカウントが永久凍結される極めて高いリスクがあります。<br>
+    <strong>絶対にメインアカウントでは使わないでください。自己責任です。</strong>
   </div>
 
   <label for="tokens">ユーザーアカウントトークン（最大15個、改行区切り）</label>
-  <textarea id="tokens" placeholder="自分のアカウントトークンを1行ずつ貼り付けてください（最大15個）"></textarea>
+  <textarea id="tokens" placeholder="自分のアカウントトークンを1行ずつ貼り付けてください"></textarea>
 
   <label for="channel">送信先チャンネルID</label>
   <input type="text" id="channel" placeholder="例: 987654321098765432">
 
-  <label for="message">送信メッセージ（最大2000文字、Discordの通常制限）</label>
-  <textarea id="message" maxlength="2000" placeholder="送信したいメッセージを入力（2000文字まで）"></textarea>
+  <label for="message">送信メッセージ（最大2000文字）</label>
+  <textarea id="message" maxlength="2000" placeholder="送信したいメッセージ"></textarea>
+
+  <div class="row">
+    <div>
+      <label for="interval">送信間隔（ミリ秒）</label>
+      <input type="number" id="interval" value="5000" min="1000" placeholder="例: 5000 = 5秒">
+    </div>
+    <div>
+      <label for="maxCount">送信回数（空欄または0で無限）</label>
+      <input type="number" id="maxCount" value="0" min="0" placeholder="0 = 無限">
+    </div>
+  </div>
 
   <div class="buttons">
     <button id="startBtn" onclick="startSending()">実行</button>
     <button id="stopBtn" onclick="stopSending()">停止</button>
   </div>
+
+  <div class="stats" id="stats">累計送信成功: 0 回</div>
 
   <div class="log" id="log"></div>
 </div>
@@ -133,12 +162,16 @@ button{
 const tokensEl = document.getElementById("tokens");
 const channelEl = document.getElementById("channel");
 const messageEl = document.getElementById("message");
+const intervalEl = document.getElementById("interval");
+const maxCountEl = document.getElementById("maxCount");
 const logEl = document.getElementById("log");
+const statsEl = document.getElementById("stats");
 const startBtn = document.getElementById("startBtn");
 const stopBtn = document.getElementById("stopBtn");
 
 let isRunning = false;
-let controller = null;
+let successCount = 0;
+let currentIndex = 0;
 
 function now(){
   const d = new Date();
@@ -150,15 +183,20 @@ function log(text){
   logEl.scrollTop = logEl.scrollHeight;
 }
 
+function updateStats(){
+  statsEl.textContent = `累計送信成功: ${successCount} 回`;
+}
+
 function clearLog(){
   logEl.innerHTML = "";
+  successCount = 0;
+  updateStats();
 }
 
 function stopSending(){
   isRunning = false;
-  if(controller) controller.abort();
   stopBtn.classList.remove("enabled");
-  log("🛑 送信を停止しました");
+  log("🛑 自動送信を停止しました");
 }
 
 async function sendMessage(token, channelId, content){
@@ -167,7 +205,7 @@ async function sendMessage(token, channelId, content){
     const res = await fetch(url, {
       method: "POST",
       headers: {
-        "Authorization": token.trim(),  // User Tokenは "Bot " を付けない
+        "Authorization": token.trim(),
         "Content-Type": "application/json",
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
       },
@@ -185,38 +223,34 @@ async function sendMessage(token, channelId, content){
       return { success: false, error: res.status, text };
     }
   }catch(e){
-    if(e.name === 'AbortError') return { aborted: true };
     return { success: false, error: "Network Error" };
   }
 }
 
 async function startSending(){
   if(isRunning) return;
-  
+
   clearLog();
   stopBtn.classList.add("enabled");
 
   const rawTokens = tokensEl.value.trim();
   const channelId = channelEl.value.trim();
   const message = messageEl.value.trim();
+  const intervalMs = parseInt(intervalEl.value) || 5000;
+  const maxCount = parseInt(maxCountEl.value) || 0;
 
-  if(!rawTokens){
-    log("❌ トークンが入力されていません");
-    stopBtn.classList.remove("enabled");
-    return;
-  }
-  if(!channelId){
-    log("❌ チャンネルIDが入力されていません");
-    stopBtn.classList.remove("enabled");
-    return;
-  }
-  if(!message){
-    log("❌ 送信メッセージが入力されていません");
+  if(!rawTokens || !channelId || !message){
+    log("❌ トークン・チャンネルID・メッセージは必須です");
     stopBtn.classList.remove("enabled");
     return;
   }
   if(message.length > 2000){
-    log("❌ メッセージは2000文字以内にしてください");
+    log("❌ メッセージは2000文字以内です");
+    stopBtn.classList.remove("enabled");
+    return;
+  }
+  if(intervalMs < 1000){
+    log("❌ 送信間隔は最低1000ms（1秒）にしてください");
     stopBtn.classList.remove("enabled");
     return;
   }
@@ -228,41 +262,48 @@ async function startSending(){
     return;
   }
 
-  log(`✅ 開始：${tokens.length}個のアカウントトークンで送信`);
+  log(`✅ 自動送信開始（${tokens.length}アカウント使用）`);
+  log(`間隔: ${intervalMs}ms | 最大回数: ${maxCount === 0 ? "無限" : maxCount + "回"}`);
   log(`チャンネル: ${channelId}`);
 
   isRunning = true;
-  controller = new AbortController();
+  currentIndex = 0;
+  let sentCount = 0;
 
-  for(let i = 0; i < tokens.length && isRunning; i++){
-    const token = tokens[i];
-    log(`[${i+1}/${tokens.length}] 送信中... (${token.slice(0,10)}...)`);
+  while(isRunning && (maxCount === 0 || sentCount < maxCount)){
+    const token = tokens[currentIndex % tokens.length];
+    currentIndex++;
+
+    log(`[${sentCount + 1}] 送信中... (${token.slice(0,10)}...)`);
 
     const result = await sendMessage(token, channelId, message);
 
-    if(result.aborted){
-      log("🛑 中止されました");
-      break;
-    }
     if(result.success){
-      log(`✅ 成功: ${token.slice(0,10)}...`);
+      successCount++;
+      sentCount++;
+      updateStats();
+      log(`✅ 成功 (${successCount}回目)`);
     }else if(result.rateLimit){
-      const wait = result.retryAfter * 1000;
-      log(`⏳ レートリミット: ${result.retryAfter}s 待機中...`);
-      await new Promise(r => setTimeout(r, wait));
-      i--; // 再試行
+      log(`⏳ レートリミット: ${result.retryAfter}s 待機`);
+      await new Promise(r => setTimeout(r, result.retryAfter * 1000));
+      continue; // すぐ再試行
     }else{
-      log(`❌ 失敗: ${token.slice(0,10)}... (Status: ${result.error || 'Unknown'})`);
-      if(result.text && result.text.includes("401: Unauthorized")){
-        log(`   → トークンが無効または凍結の可能性が高いです`);
+      log(`❌ 失敗 (${result.error || 'Unknown'})`);
+      if(result.text && result.text.includes("401")){
+        log(`   → このトークンは無効/凍結の可能性大`);
       }
     }
 
-    // ユーザーアカウントはレートリミットが厳しいので長めに待機
-    if(isRunning) await new Promise(r => setTimeout(r, 2000));
+    // 次送信まで待機
+    if(isRunning && (maxCount === 0 || sentCount < maxCount)){
+      await new Promise(r => setTimeout(r, intervalMs));
+    }
   }
 
-  if(isRunning) log("🏁 全トークンの送信が完了しました");
+  if(maxCount !== 0 && sentCount >= maxCount){
+    log(`🏁 指定回数(${maxCount}回)に達したため終了`);
+  }
+
   isRunning = false;
   stopBtn.classList.remove("enabled");
 }
