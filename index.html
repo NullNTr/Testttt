@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>Discord User Token Message Sender</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+body{
+  margin:0;
+  min-height:100vh;
+  background:#000;
+  display:flex;
+  justify-content:center;
+  align-items:center;
+  font-family:system-ui,sans-serif;
+  color:#fee2e2;
+}
+.container{
+  width:94%;
+  max-width:600px;
+  padding:24px;
+  background:linear-gradient(145deg,#1a0000,#000);
+  border-radius:18px;
+  border:1px solid #7f1d1d;
+  box-shadow:0 0 40px rgba(239,68,68,.35);
+}
+h1{
+  text-align:center;
+  margin-bottom:24px;
+  font-size:26px;
+  background:linear-gradient(90deg,#fecaca,#ef4444,#7f1d1d);
+  -webkit-background-clip:text;
+  -webkit-text-fill-color:transparent;
+}
+label{
+  display:block;
+  margin-top:16px;
+  font-size:14px;
+  color:#fecaca;
+}
+input, textarea{
+  width:100%;
+  box-sizing:border-box;
+  margin-top:8px;
+  padding:12px;
+  border-radius:12px;
+  background:#000;
+  color:#fee2e2;
+  border:1px solid #7f1d1d;
+  outline:none;
+  font-size:14px;
+}
+textarea{
+  resize:vertical;
+  height:120px;
+}
+#message{
+  height:100px;
+}
+.buttons{
+  display:flex;
+  gap:12px;
+  margin-top:20px;
+}
+button{
+  flex:1;
+  padding:15px;
+  font-size:16px;
+  font-weight:bold;
+  border-radius:14px;
+  border:none;
+  cursor:pointer;
+  color:white;
+}
+#startBtn{
+  background:linear-gradient(135deg,#16a34a,#22c55e);
+}
+#stopBtn{
+  background:linear-gradient(135deg,#dc2626,#ef4444);
+  opacity:0.6;
+}
+#stopBtn.enabled{
+  opacity:1;
+}
+.log{
+  margin-top:20px;
+  padding:12px;
+  background:#111;
+  border-radius:12px;
+  border:1px solid #7f1d1d;
+  max-height:200px;
+  overflow:auto;
+  font-size:13px;
+  color:#fecaca;
+}
+.warning{
+  background:#330000;
+  padding:12px;
+  border-radius:10px;
+  margin-bottom:20px;
+  font-size:13px;
+  border:1px solid #7f1d1d;
+}
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>Discord User Token Message Sender</h1>
+
+  <div class="warning">
+    ⚠️ 警告：ユーザーアカウントトークンを使用した自動送信はDiscord利用規約違反です。<br>
+    アカウントが凍結・削除される可能性が非常に高いです。自己責任で使用してください。
+  </div>
+
+  <label for="tokens">ユーザーアカウントトークン（最大15個、改行区切り）</label>
+  <textarea id="tokens" placeholder="自分のアカウントトークンを1行ずつ貼り付けてください（最大15個）"></textarea>
+
+  <label for="channel">送信先チャンネルID</label>
+  <input type="text" id="channel" placeholder="例: 987654321098765432">
+
+  <label for="message">送信メッセージ（最大2000文字、Discordの通常制限）</label>
+  <textarea id="message" maxlength="2000" placeholder="送信したいメッセージを入力（2000文字まで）"></textarea>
+
+  <div class="buttons">
+    <button id="startBtn" onclick="startSending()">実行</button>
+    <button id="stopBtn" onclick="stopSending()">停止</button>
+  </div>
+
+  <div class="log" id="log"></div>
+</div>
+
+<script>
+const tokensEl = document.getElementById("tokens");
+const channelEl = document.getElementById("channel");
+const messageEl = document.getElementById("message");
+const logEl = document.getElementById("log");
+const startBtn = document.getElementById("startBtn");
+const stopBtn = document.getElementById("stopBtn");
+
+let isRunning = false;
+let controller = null;
+
+function now(){
+  const d = new Date();
+  return `[${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}:${String(d.getSeconds()).padStart(2,"0")}]`;
+}
+
+function log(text){
+  logEl.innerHTML += `${now()} ${text}<br>`;
+  logEl.scrollTop = logEl.scrollHeight;
+}
+
+function clearLog(){
+  logEl.innerHTML = "";
+}
+
+function stopSending(){
+  isRunning = false;
+  if(controller) controller.abort();
+  stopBtn.classList.remove("enabled");
+  log("🛑 送信を停止しました");
+}
+
+async function sendMessage(token, channelId, content){
+  const url = `https://discord.com/api/v10/channels/${channelId}/messages`;
+  try{
+    const res = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Authorization": token.trim(),  // User Tokenは "Bot " を付けない
+        "Content-Type": "application/json",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+      },
+      body: JSON.stringify({ content })
+    });
+
+    if(res.ok){
+      return { success: true };
+    }else if(res.status === 429){
+      const json = await res.json();
+      const retryAfter = (json.retry_after || 5) + 2;
+      return { success: false, rateLimit: true, retryAfter };
+    }else{
+      const text = await res.text();
+      return { success: false, error: res.status, text };
+    }
+  }catch(e){
+    if(e.name === 'AbortError') return { aborted: true };
+    return { success: false, error: "Network Error" };
+  }
+}
+
+async function startSending(){
+  if(isRunning) return;
+  
+  clearLog();
+  stopBtn.classList.add("enabled");
+
+  const rawTokens = tokensEl.value.trim();
+  const channelId = channelEl.value.trim();
+  const message = messageEl.value.trim();
+
+  if(!rawTokens){
+    log("❌ トークンが入力されていません");
+    stopBtn.classList.remove("enabled");
+    return;
+  }
+  if(!channelId){
+    log("❌ チャンネルIDが入力されていません");
+    stopBtn.classList.remove("enabled");
+    return;
+  }
+  if(!message){
+    log("❌ 送信メッセージが入力されていません");
+    stopBtn.classList.remove("enabled");
+    return;
+  }
+  if(message.length > 2000){
+    log("❌ メッセージは2000文字以内にしてください");
+    stopBtn.classList.remove("enabled");
+    return;
+  }
+
+  const tokens = rawTokens.split("\n").map(t=>t.trim()).filter(t=>t).slice(0,15);
+  if(tokens.length === 0){
+    log("❌ 有効なトークンがありません");
+    stopBtn.classList.remove("enabled");
+    return;
+  }
+
+  log(`✅ 開始：${tokens.length}個のアカウントトークンで送信`);
+  log(`チャンネル: ${channelId}`);
+
+  isRunning = true;
+  controller = new AbortController();
+
+  for(let i = 0; i < tokens.length && isRunning; i++){
+    const token = tokens[i];
+    log(`[${i+1}/${tokens.length}] 送信中... (${token.slice(0,10)}...)`);
+
+    const result = await sendMessage(token, channelId, message);
+
+    if(result.aborted){
+      log("🛑 中止されました");
+      break;
+    }
+    if(result.success){
+      log(`✅ 成功: ${token.slice(0,10)}...`);
+    }else if(result.rateLimit){
+      const wait = result.retryAfter * 1000;
+      log(`⏳ レートリミット: ${result.retryAfter}s 待機中...`);
+      await new Promise(r => setTimeout(r, wait));
+      i--; // 再試行
+    }else{
+      log(`❌ 失敗: ${token.slice(0,10)}... (Status: ${result.error || 'Unknown'})`);
+      if(result.text && result.text.includes("401: Unauthorized")){
+        log(`   → トークンが無効または凍結の可能性が高いです`);
+      }
+    }
+
+    // ユーザーアカウントはレートリミットが厳しいので長めに待機
+    if(isRunning) await new Promise(r => setTimeout(r, 2000));
+  }
+
+  if(isRunning) log("🏁 全トークンの送信が完了しました");
+  isRunning = false;
+  stopBtn.classList.remove("enabled");
+}
+</script>
+</body>
+</html>
