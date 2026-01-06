@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<title>Discord User Token Auto Spammer</title>
+<title>Discord User Token Auto Join & Spammer</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <style>
 body{
@@ -120,16 +120,22 @@ button{
 </head>
 <body>
 <div class="container">
-  <h1>Discord User Token Auto Spammer</h1>
+  <h1>Discord User Token Auto Join & Spammer</h1>
 
   <div class="warning">
-    ⚠️ 超危険警告：ユーザーアカウントトークンでの自動送信はDiscord利用規約に明確に違反します。<br>
-    数分～数時間でアカウントが永久凍結される極めて高いリスクがあります。<br>
-    <strong>絶対にメインアカウントでは使わないでください。自己責任です。</strong>
+    ⚠️ 超危険警告：ユーザーアカウントトークン使用はDiscord利用規約違反です。<br>
+    サーバー参加や自動送信は即アカウント凍結の原因になります。<br>
+    <strong>メインアカウントでは絶対に使用しないでください。全て自己責任です。</strong>
   </div>
 
   <label for="tokens">ユーザーアカウントトークン（最大15個、改行区切り）</label>
   <textarea id="tokens" placeholder="自分のアカウントトークンを1行ずつ貼り付けてください"></textarea>
+
+  <label for="guild">参加させるサーバーID（Guild ID）</label>
+  <input type="text" id="guild" placeholder="例: 123456789012345678">
+
+  <label for="invite">または 招待コード（例: abcdef または https://discord.gg/abcdef）</label>
+  <input type="text" id="invite" placeholder="招待リンクまたはコード（サーバーIDの代わり）">
 
   <label for="channel">送信先チャンネルID</label>
   <input type="text" id="channel" placeholder="例: 987654321098765432">
@@ -140,17 +146,17 @@ button{
   <div class="row">
     <div>
       <label for="interval">送信間隔（ミリ秒）</label>
-      <input type="number" id="interval" value="5000" min="1000" placeholder="例: 5000 = 5秒">
+      <input type="number" id="interval" value="5000" min="1000">
     </div>
     <div>
       <label for="maxCount">送信回数（空欄または0で無限）</label>
-      <input type="number" id="maxCount" value="0" min="0" placeholder="0 = 無限">
+      <input type="number" id="maxCount" value="0" min="0">
     </div>
   </div>
 
   <div class="buttons">
-    <button id="startBtn" onclick="startSending()">実行</button>
-    <button id="stopBtn" onclick="stopSending()">停止</button>
+    <button id="startBtn" onclick="startProcess()">実行</button>
+    <button id="stopBtn" onclick="stopProcess()">停止</button>
   </div>
 
   <div class="stats" id="stats">累計送信成功: 0 回</div>
@@ -160,6 +166,8 @@ button{
 
 <script>
 const tokensEl = document.getElementById("tokens");
+const guildEl = document.getElementById("guild");
+const inviteEl = document.getElementById("invite");
 const channelEl = document.getElementById("channel");
 const messageEl = document.getElementById("message");
 const intervalEl = document.getElementById("interval");
@@ -193,10 +201,49 @@ function clearLog(){
   updateStats();
 }
 
-function stopSending(){
+function stopProcess(){
   isRunning = false;
   stopBtn.classList.remove("enabled");
-  log("🛑 自動送信を停止しました");
+  log("🛑 処理を停止しました");
+}
+
+async function joinServer(token, guildId, inviteCode){
+  let url;
+  let body = {};
+
+  if(inviteCode){
+    // 招待コードから抽出
+    const code = inviteCode.replace(/.*discord\.gg\//, '').trim();
+    if(!code) return { success: false, error: "無効な招待コード" };
+    url = `https://discord.com/api/v10/invites/${code}`;
+  }else if(guildId){
+    // 直接joinは通常不可能なので失敗扱い（参考情報）
+    log("   ℹ️ 招待コードなしでサーバーIDのみ指定した場合、参加できません（Discord制限）");
+    return { success: false, error: "招待コードが必要です" };
+  }else{
+    return { success: false, error: "サーバーIDまたは招待コードを入力してください" };
+  }
+
+  try{
+    const res = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Authorization": token.trim(),
+        "Content-Type": "application/json",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+      },
+      body: JSON.stringify(body)
+    });
+
+    if(res.ok || res.status === 200){
+      return { success: true };
+    }else{
+      const json = await res.json().catch(() => ({}));
+      return { success: false, error: json.message || `Status: ${res.status}` };
+    }
+  }catch(e){
+    return { success: false, error: "Network Error" };
+  }
 }
 
 async function sendMessage(token, channelId, content){
@@ -219,21 +266,23 @@ async function sendMessage(token, channelId, content){
       const retryAfter = (json.retry_after || 5) + 2;
       return { success: false, rateLimit: true, retryAfter };
     }else{
-      const text = await res.text();
-      return { success: false, error: res.status, text };
+      const json = await res.json().catch(() => ({}));
+      return { success: false, error: json.message || `Status: ${res.status}` };
     }
   }catch(e){
     return { success: false, error: "Network Error" };
   }
 }
 
-async function startSending(){
+async function startProcess(){
   if(isRunning) return;
 
   clearLog();
   stopBtn.classList.add("enabled");
 
   const rawTokens = tokensEl.value.trim();
+  const guildId = guildEl.value.trim();
+  const inviteCode = inviteEl.value.trim();
   const channelId = channelEl.value.trim();
   const message = messageEl.value.trim();
   const intervalMs = parseInt(intervalEl.value) || 5000;
@@ -244,13 +293,13 @@ async function startSending(){
     stopBtn.classList.remove("enabled");
     return;
   }
-  if(message.length > 2000){
-    log("❌ メッセージは2000文字以内です");
+  if(!guildId && !inviteCode){
+    log("❌ サーバーIDまたは招待コードのいずれかを入力してください");
     stopBtn.classList.remove("enabled");
     return;
   }
-  if(intervalMs < 1000){
-    log("❌ 送信間隔は最低1000ms（1秒）にしてください");
+  if(message.length > 2000 || intervalMs < 1000){
+    log("❌ パラメータが無効です（メッセージ2000文字以内、間隔1000ms以上）");
     stopBtn.classList.remove("enabled");
     return;
   }
@@ -262,13 +311,35 @@ async function startSending(){
     return;
   }
 
-  log(`✅ 自動送信開始（${tokens.length}アカウント使用）`);
-  log(`間隔: ${intervalMs}ms | 最大回数: ${maxCount === 0 ? "無限" : maxCount + "回"}`);
-  log(`チャンネル: ${channelId}`);
+  log(`✅ 処理開始（${tokens.length}アカウント使用）`);
+  log(`間隔: ${intervalMs}ms | 最大送信回数: ${maxCount === 0 ? "無限" : maxCount + "回"}`);
 
   isRunning = true;
   currentIndex = 0;
   let sentCount = 0;
+
+  // まず全トークンでサーバー参加を試行
+  log("🔗 サーバー参加処理を開始...");
+  for(let i = 0; i < tokens.length && isRunning; i++){
+    const token = tokens[i];
+    log(`[${i+1}/${tokens.length}] 参加試行中... (${token.slice(0,10)}...)`);
+
+    const result = await joinServer(token, guildId, inviteCode);
+
+    if(result.success){
+      log(`✅ 参加成功: ${token.slice(0,10)}...`);
+    }else{
+      log(`❌ 参加失敗: ${token.slice(0,10)}... (${result.error})`);
+      if(result.error.includes("captcha")) log("   → CAPTCHA検知（手動参加が必要かも）");
+    }
+
+    if(isRunning) await new Promise(r => setTimeout(r, 2000)); // 参加間隔
+  }
+
+  if(!isRunning) return;
+
+  log("📩 参加完了。自動メッセージ送信を開始...");
+  log(`チャンネル: ${channelId}`);
 
   while(isRunning && (maxCount === 0 || sentCount < maxCount)){
     const token = tokens[currentIndex % tokens.length];
@@ -286,15 +357,11 @@ async function startSending(){
     }else if(result.rateLimit){
       log(`⏳ レートリミット: ${result.retryAfter}s 待機`);
       await new Promise(r => setTimeout(r, result.retryAfter * 1000));
-      continue; // すぐ再試行
+      continue;
     }else{
-      log(`❌ 失敗 (${result.error || 'Unknown'})`);
-      if(result.text && result.text.includes("401")){
-        log(`   → このトークンは無効/凍結の可能性大`);
-      }
+      log(`❌ 送信失敗 (${result.error})`);
     }
 
-    // 次送信まで待機
     if(isRunning && (maxCount === 0 || sentCount < maxCount)){
       await new Promise(r => setTimeout(r, intervalMs));
     }
